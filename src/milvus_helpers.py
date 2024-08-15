@@ -48,7 +48,7 @@ class MilvusHelper:
         # Batch insert vectors to milvus collection
         try:
             self.set_collection(collection_name)
-            data = [[vectors], [obj_name]]
+            data = [vectors, obj_name]
             mr = self.collection.insert(data)
             ids = mr.primary_keys
             LOGGER.debug(

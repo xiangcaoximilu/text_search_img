@@ -40,7 +40,7 @@ def extract_features(img_dir, model):
             except Exception as e:
                 LOGGER.error(f"Error with extracting feature from image{e}")
                 continue
-        return feats, names
+        return feats, names, img_list
 
     except Exception as e:
         LOGGER.error(f"Error with extracting feature from image {e}")
@@ -52,15 +52,27 @@ def format_data(ids, names):
     return data
 
 
-def do_load(table_name: str, image_dir: str, model, milvus_client: MilvusHelper, mysql_cli=None, minio_cli:MinioHelper=None):
-    # 加载向量数据到milvus,加载元数据(图像路径)到mysql
+def do_load(table_name: str, image_dir: str, model, milvus_client: MilvusHelper, mysql_cli = None,
+            minio_cli: MinioHelper = None):
+    # 加载向量数据到milvus,加载元数据(图像路径)到mysql,加载图片到minio,将存储在minio中的路径存为milvus的path字段
     if not table_name:
         table_name = DEFAULT_TABLE
     if not milvus_client.has_collection(collection_name=table_name):
         milvus_client.create_collection(table_name)
         milvus_client.create_index(table_name)
-    vectors, names = extract_features(image_dir, model)
-    ids = milvus_client.insert(table_name, vectors)
+        LOGGER.debug(f"Milvus collect:{table_name} is not exist, creating it")
+    vectors, names, img_list = extract_features(image_dir, model)
+    if not minio_cli.has_bucket(minio_cli.MINIO_DEFAULT_BUCKET):
+        minio_cli.create_bucket(bucket_name=minio_cli.MINIO_DEFAULT_BUCKET)
+        LOGGER.debug(f"Minio bucket:{minio_cli.MINIO_DEFAULT_BUCKET} is not exist, creating it")
+    object_names = []
+    for pic in img_list:
+        object_name = os.path.basename(pic)
+        minio_cli.upload_img(pic, minio_cli.MINIO_DEFAULT_BUCKET, object_name=object_name)
+        object_names.append(object_name)
+    LOGGER.debug(f"Successfully load img to Minio:{minio_cli.MINIO_DEFAULT_BUCKET}!")
+    ids = milvus_client.insert(table_name, vectors, object_names)
+    LOGGER.debug(f"Successfully load embedding to Milvus:{table_name}!")
     # mysql_cli.create_mysql_table(table_name)
     # mysql_cli.load_data_to_mysql(table_name, format_data(ids, names))
     return len(ids)

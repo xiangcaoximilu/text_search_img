@@ -27,7 +27,8 @@ def do_upload(table_name: str, img_path: str, model: Chinese_CLIP, milvus_client
         minio_cli.upload_img(img_path, minio_cli.MINIO_DEFAULT_BUCKET, object_name=object_name)
 
         feat = model.clip_vit_base_patch16_extract_img_feat(img_path)
-        ids = milvus_client.insert(table_name, feat, object_name)
+        # 插入一张图片，要加[]
+        ids = milvus_client.insert(table_name, feat, [object_name])
         # mysql_cli.create_mysql_table(table_name)
         # mysql_cli.load_data_to_mysql(table_name, [(str(ids[0]), img_path.encode())])
         return ids[0]
